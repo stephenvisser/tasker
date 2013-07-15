@@ -1,0 +1,11 @@
+<div class="page-container" ng-style="{top: locationFromRow(location.rowNum)}" ng-controller="ColumnCtrl">
+	<div class="card-container done" style="height:70%" ng-style="{left: locationFromColumn(location.todoIndex, 80)}" ng-controller="RowCtrl" hmr-swipeleft="nextTodo()" hmr-swiperight="prevTodo()">
+		<div class="card" ng-repeat="task in doneTasks" hmr-swipedown="restart(task)" hmr-tap="viewTask($index)" ng-controller="RowCtrl">{{task.name}}</div>
+	</div>
+	<div class="card-container current" style="height:70%" ng-style="{left: locationFromColumn(location.activeIndex, 80)}" ng-controller="RowCtrl" hmr-swipeleft="nextTask()" hmr-swiperight="prevTask()">
+		<div class="card" ng-repeat="task in currentTasks" hmr-swipeup="finish(task)" hmr-tap="startTask($index)" ng-class="{active: isInProgress(task)}">{{task.name}}<div class="time" ng-show="isInProgress(task)">{{elapsedTime | time}}</div></div>
+	</div>
+	<div class="card-container" style="height:70%">
+		<img src="relaxing.svg" class="card" hmr-tap="relax()"/>
+	</div>
+</div>
