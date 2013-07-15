@@ -1,6 +1,7 @@
 // Generated on 2013-06-28 using generator-angular 0.3.0
 'use strict';
 var LIVERELOAD_PORT = 35729;
+var Trello = require('node-trello');
 var lrSnippet = require('connect-livereload')({ port: LIVERELOAD_PORT });
 var mountFolder = function (connect, dir) {
   return connect.static(require('path').resolve(dir));
@@ -63,17 +64,32 @@ module.exports = function (grunt) {
         options: {
           middleware: function (connect) {
             return [
+              connect.cookieParser(Math.random().toString(36)),
+              function(req, res, next) {
+                if (req.url === '/') {
+                  if (req.cookies.hasOwnProperty('TrelloKey')) {
+                    next();
+                  } else {
+                    res.writeHead(303, 'Trello Auth', {
+                      Location: 'https://trello.com/1/authorize?callback_method=fragment&return_url=http://' + req.headers.host + '/register.html&scope=read,write&expiration=never&name=Tasker&key=e0f4f2383350169cde5a6c64b96626c1'
+                    });
+                    res.end();
+                  }
+                } else {
+                  next();
+                }
+              },
               lrSnippet,
               connect.json(),
               mountFolder(connect, '.tmp'),
               mountFolder(connect, yeomanConfig.app),
               function(req, res, next) {
-                var Trello = require('node-trello'),
-                    t = new Trello('e0f4f2383350169cde5a6c64b96626c1','eb2c865041684fed6661760c7758b3a8b1a14b00f8df96093c87b4808066d544');
-                t.request(req.method, req.url.split('/api', 2)[1], req.body, function(err, data) {
-                  if (err) throw err;
-                  res.end(JSON.stringify(data));
-                });
+                if (req.cookies.hasOwnProperty('TrelloKey')) {
+                  new Trello('e0f4f2383350169cde5a6c64b96626c1',req.cookies['TrelloKey']).request(req.method, req.url.split('/api', 2)[1], req.body, function(err, data) {
+                    if (err) throw err;
+                    res.end(JSON.stringify(data));
+                  });
+                }
               }
             ];
           }

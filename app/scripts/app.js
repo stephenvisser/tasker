@@ -3,19 +3,20 @@
 angular.module('trelloApp', ['ngResource'])
   .config(function ($routeProvider) {
     $routeProvider
-      .when('/board/:id', {
+      .when('/setup', {
         templateUrl: 'views/board.html',
         controller: 'BoardCtrl'
       })
-      .when('/tasks/:id', {
-        templateUrl: 'views/tasks.html',
-        controller: 'TaskCtrl'
-      })
-      .when('/', {
+      .when('/choose', {
         templateUrl: 'views/main.html',
         controller: 'MainCtrl'
       })
-      .otherwise({
-        redirectTo: '/'
+      .when('/', {
+        templateUrl: 'views/tasks.html',
+        controller: 'TaskCtrl'
       });
+  }).run(function($location) {
+    if (!localStorage.getItem('board')) {
+      $location.path('/choose');
+    }
   });
