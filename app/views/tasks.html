@@ -5,7 +5,17 @@
 	<div class="card-container current" style="height:70%" ng-style="{left: locationFromColumn(location.activeIndex, 80)}" ng-controller="RowCtrl" hmr-swipeleft="nextTask()" hmr-swiperight="prevTask()">
 		<div class="card" ng-repeat="task in currentTasks" hmr-swipeup="finish(task)" hmr-tap="startTask($index)" ng-class="{active: isInProgress(task)}">{{task.name}}<div class="time" ng-show="isInProgress(task)">{{elapsedTime | time}}</div></div>
 	</div>
-	<div class="card-container" style="height:70%">
-		<img src="relaxing.svg" class="card" hmr-tap="relax()"/>
+	<div class="card-container" style="height:70%; left: 10%">
+		<div class="summary" hmr-tap="relax()">
+			<div ng-repeat="activity in cards" class="summary-item">
+				<div class="time">{{activity.id | lookup:activities | time}}</div>
+				<div>{{activity.name}}</div>
+				<div class="progress" ng-style="getPosition($index)"></div>
+			</div>
+			<div class="summary-item total" ng-show="cards">
+				<div class="time">{{total(activities) | time}}</div>
+				&nbsp;
+			</div>
+		</div>
 	</div>
 </div>

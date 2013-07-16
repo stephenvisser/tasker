@@ -23,13 +23,11 @@ angular.module('trelloApp')
                 tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
 
             Actions.query({id: card.id, since: dateString(today), before: dateString(tomorrow)}, function(results){
-                var lastStart = null,
-                    sorted = results.sort(function(a, b){
-                        return new Date(a.date).getTime() - new Date(b.date).getTime();
-                    }),
-                    lastItem = sorted[sorted.length - 1];
+                var lastStart = null;
 
-                $scope.elapsedTime = sorted.reduce(function(aggregate, x) {
+                $scope.elapsedTime = results.sort(function(a, b){
+                        return new Date(a.date).getTime() - new Date(b.date).getTime();
+                    }).reduce(function(aggregate, x) {
                     if (actionInProgress(x)) {
                         lastStart = x;
                     } else if (lastStart) {
@@ -39,8 +37,8 @@ angular.module('trelloApp')
                     return aggregate;
                 }, 0);
 
-                if (actionInProgress(lastItem)) {
-                    $scope.elapsedTime += (new Date().getTime() - new Date(lastItem.date).getTime());
+                if (actionInProgress(lastStart)) {
+                    $scope.elapsedTime += (new Date().getTime() - new Date(lastStart.date).getTime());
                 }
             });
         }
@@ -51,6 +49,8 @@ angular.module('trelloApp')
     var Card = $resource('/api/1/lists/:id/cards');
 
     var Actions = $resource('/api/1/cards/:id/actions');
+
+    var AllActions = $resource('/api/1/lists/:id/actions', {id: localStorage.getItem('inprogress')});
 
     //Perform the fetches
     $scope.currentTasks = Card.query({id: localStorage.getItem('todo')}, function(){
@@ -120,12 +120,66 @@ angular.module('trelloApp')
         activeIndex: 0
     }
 
+    $scope.activities = {};
+
+    $scope.empty = function(item) {
+        return Object.keys(item).length === 0;
+    }
+
+    $scope.total = function(list) {
+        return Object.keys(list).reduce(function(total, card){
+            return list[card] + total;
+        }, 0);
+    };
+
+    $scope.getPosition = function(index) {
+        var total = total($scope.activities);
+        return {
+            left: ($scope.cards.slice(0, index).reduce(function(total, card){
+                        return total + $scope.activities[card.id];
+                    }, 0) * 100 / total) + '%',
+            width: ($scope.activities[$scope.cards[index].id] * 100 / total) + '%'
+        };
+    }
+
     $scope.relax = function() {
         $scope.location.rowNum = 2;
         Card.query({id: localStorage.getItem('inprogress')}, function(result){
             $q.all(result.map(function(item) {
                 return move(item, 'todo');
             })).then(refresh);
+        });
+
+        var today = new Date(),
+            tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+
+        AllActions.query({since: dateString(today), before: dateString(tomorrow), limit: 200}, function(result){
+            var last = null;
+
+            $scope.cards = [];
+
+            $scope.activities = result.sort(function(a, b){
+                return new Date(a.date).getTime() - new Date(b.date).getTime();
+            }).reduce(function(hash, action) {
+
+                if (last) {
+                    var total = new Date(action.date).getTime() - new Date(last.date).getTime();
+                    if (hash.hasOwnProperty(action.data.card.id)) {
+                        hash[action.data.card.id] += total;
+                    } else {
+                        hash[action.data.card.id] = total;
+                        $scope.cards.push(action.data.card);
+                    }
+                    last = null;
+                } else if (action.data.listAfter.id === localStorage.getItem('inprogress')) {
+                    last = action;
+                }
+                return hash;
+            }, {});
+
+            if (actionInProgress(last)) {
+                $scope.activities += (new Date().getTime() - new Date(last.date).getTime());
+            }
         });
     };
 
