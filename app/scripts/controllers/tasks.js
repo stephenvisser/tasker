@@ -121,6 +121,7 @@ angular.module('trelloApp')
     }
 
     $scope.activities = {};
+    $scope.cards = [];
 
     $scope.empty = function(item) {
         return Object.keys(item).length === 0;
@@ -133,7 +134,7 @@ angular.module('trelloApp')
     };
 
     $scope.getPosition = function(index) {
-        var total = total($scope.activities);
+        var total = $scope.total($scope.activities);
         return {
             left: ($scope.cards.slice(0, index).reduce(function(total, card){
                         return total + $scope.activities[card.id];
@@ -156,8 +157,7 @@ angular.module('trelloApp')
         AllActions.query({since: dateString(today), before: dateString(tomorrow), limit: 200}, function(result){
             var last = null;
 
-            $scope.cards = [];
-
+            $scope.cards.length = 0;
             $scope.activities = result.sort(function(a, b){
                 return new Date(a.date).getTime() - new Date(b.date).getTime();
             }).reduce(function(hash, action) {
@@ -177,8 +177,8 @@ angular.module('trelloApp')
                 return hash;
             }, {});
 
-            if (actionInProgress(last)) {
-                $scope.activities += (new Date().getTime() - new Date(last.date).getTime());
+            if (last && actionInProgress(last)) {
+                $scope.activities[last.data.card.id] += (new Date().getTime() - new Date(last.date).getTime());
             }
         });
     };

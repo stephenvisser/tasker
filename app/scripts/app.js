@@ -19,4 +19,4 @@ angular.module('trelloApp', ['ngResource'])
     if (!localStorage.getItem('board')) {
       $location.path('/choose');
     }
-  }).value('$anchorScroll', null);
+  });
