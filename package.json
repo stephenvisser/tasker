@@ -2,7 +2,8 @@
   "name": "trello",
   "version": "0.0.0",
   "dependencies": {
-    "node-trello": "~0.1.4"
+    "node-trello": "~0.1.4",
+    "connect": "~2.8.4"
   },
   "devDependencies": {
     "grunt": "~0.4.1",
