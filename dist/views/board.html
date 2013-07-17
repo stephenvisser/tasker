@@ -1,0 +1,17 @@
+<div class=""><div class="split-item">
+<!-- 		<li ng-repeat="card in cards">
+			{{card.name}}
+		</li> -->
+	<div ng-repeat="list in lists" class="draggable" dragdrop="list.id" ng-class="{'true' : 'full', 'false' : 'empty'}[!!id]">
+	</div>
+</div><div class="split-item">
+	<div class="draggable" dragdrop="" ng-class="{'true' : 'full', 'false' : 'empty'}[!!id]" default-text="To Do" persistance-property="todo">
+	</div>
+	<div class="draggable" dragdrop="" ng-class="{'true' : 'full', 'false' : 'empty'}[!!id]" default-text="In Progress" persistance-property="inprogress">
+	</div>
+	<div class="draggable" dragdrop="" ng-class="{'true' : 'full', 'false' : 'empty'}[!!id]" default-text="Completed" persistance-property="completed">
+	</div>	
+</div>
+
+<a class="btn next-button" href="/">Done</a>
+</div>
