@@ -12,7 +12,6 @@ angular.module('trelloApp')
 	  				top: event.gesture.deltaY + 'px',
 	  				left: event.gesture.deltaX + 'px'
 	  			});
-	  			console.log('moving');
 	  		}).on('dragend', function(event){
 	  			el.css({
 	  				position: 'static'
@@ -21,14 +20,12 @@ angular.module('trelloApp')
 	  			scope.$apply(function(){
 		  			if (destController) scope.id = destController.swapId(scope.id);
 			  	});
-	  			console.log('end');
 	  		}).on('dragstart', function(event) {
 	  			if (scope.id) {
 					el.css({
 		  				position: 'relative'
 		  			});	  				
 	  			}
-	  			console.log('start');
 	  		});
 
 	  		scope.$watch('id', function(newVal, oldVal) {
