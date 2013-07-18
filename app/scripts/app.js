@@ -18,5 +18,7 @@ angular.module('trelloApp', ['ngResource'])
   }).run(function($location) {
     if (!localStorage.getItem('board')) {
       $location.path('/choose');
+    } else if (!(localStorage.getItem('todo') && localStorage.getItem('inprogress') && localStorage.getItem('completed'))) {
+      $location.path('/setup');
     }
   });

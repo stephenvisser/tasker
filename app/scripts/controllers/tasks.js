@@ -1,71 +1,64 @@
 'use strict';
 
-angular.module('trelloApp')
-  .controller('TaskCtrl', function ($scope, $resource, $http, $q, $timeout) {
+ angular.module('trelloApp') .controller('TaskCtrl', function ($scope, $resource, $http, $q, $timeout, trello) {
 
     function actionInProgress(item) {
-        return item.data.listAfter.id === localStorage.getItem('inprogress');
+        return item.data.listAfter.id === localStorage.getItem('inprogress'); 
     }
 
     function addSecond() {
         return $timeout(function(){
-            if ($scope.elapsedTime) $scope.elapsedTime = $scope.elapsedTime + 1000;
+            if ($scope.elapsedTime) $scope.elapsedTime = $scope.elapsedTime + 1000; 
         }, 1000).then(addSecond);
     }
 
-    function dateString(date) {
-        return [date.getMonth() + 1, date.getDate(), date.getFullYear()].join('/');
+    //Start a timer; 
+    addSecond();
+    function timeDiff(a, b) {
+        return new Date(a).getTime() - new Date(b).getTime();
     }
 
     function getTotalTime(card) {
         if (card) {
-            var today = new Date(),
-                tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
-
-            Actions.query({id: card.id, since: dateString(today), before: dateString(tomorrow)}, function(results){
-                var lastStart = null;
-
-                $scope.elapsedTime = results.sort(function(a, b){
-                        return new Date(a.date).getTime() - new Date(b.date).getTime();
+            return trello.getActionsForCard(card.id).then(function(results){
+                if (results.length === 0) {
+                    return move(card, 'todo').then(function(){ return move(card, 'inprogress'); }).then(function(){
+                        return getTotalTime(card);                        
+                    });
+                } else {
+                    var lastStart = null;
+                    $scope.elapsedTime = results.sort(function(a, b){
+                        return timeDiff(a.date, b.date);
                     }).reduce(function(aggregate, x) {
-                    if (actionInProgress(x)) {
-                        lastStart = x;
-                    } else if (lastStart) {
-                        return aggregate + new Date(x.date).getTime() - new Date(lastStart.date).getTime();
-                        lastStart = null;
-                    }
-                    return aggregate;
-                }, 0);
+                        if (actionInProgress(x)) {
+                            lastStart = x;
+                        } else if (lastStart) {
+                            return aggregate + timeDiff(x.date, lastStart.date);
+                            lastStart = null;
+                        }
+                        return aggregate;
+                    }, 0);
 
-                if (actionInProgress(lastStart)) {
-                    $scope.elapsedTime += (new Date().getTime() - new Date(lastStart.date).getTime());
+                    if (actionInProgress(lastStart)) {
+                        $scope.elapsedTime += (new Date().getTime() - new Date(lastStart.date).getTime());
+                    }
                 }
             });
         }
     }
-    $scope.elapsedTime = null;
-    addSecond(); 
-    //The card resource for accessing all cards in a given list
-    var Card = $resource('/api/1/lists/:id/cards');
 
-    var Actions = $resource('/api/1/cards/:id/actions');
-
-    var AllActions = $resource('/api/1/lists/:id/actions', {id: localStorage.getItem('inprogress')});
-
-    //Perform the fetches
-    $scope.currentTasks = Card.query({id: localStorage.getItem('todo')}, function(){
-        $scope.inProgressTasks = Card.query({id: localStorage.getItem('inprogress')}, function(current){
-            Array.prototype.unshift.apply($scope.currentTasks, current);
-            getTotalTime(current[0]);
-        });
-    });
-
-    $scope.doneTasks = Card.query({id: localStorage.getItem('completed')});
-
-    function remove(item, list) {
-        var index = list.indexOf(item);
-        list.splice(index, 1);
+    var active = $q.when();
+    function enqueue(task) {
+        active = active.then(task);
     }
+
+    $scope.elapsedTime = null;
+
+    $scope.currentTasks = [];
+    $scope.inProgressTasks = [];
+    $scope.doneTasks = [];
+    $scope.activities = {};
+    $scope.cards = [];
 
     function move(item, label) {
     	return $http.put('/api/1/cards/' + item.id , {idList: localStorage.getItem(label)})
@@ -82,35 +75,31 @@ angular.module('trelloApp')
         return list.splice(index, 1)[0];
     }
 
+    function synchronizeList(oldList, newList) {
+        var resultingList = [];
+        oldList.forEach(function(item){
+            var result = extract(item, newList)
+            if (result) resultingList.push(result);
+        });
+        Array.prototype.push.apply(resultingList, newList);
+        return resultingList;
+    }
+
+    //Kick off a refresh
+    enqueue(function() {
+        return refresh();
+    });
+
     function refresh() {
-        $scope.elapsedTime = null;
-        Card.query({id: localStorage.getItem('completed')}, function(completed){
-            $scope.doneTasks = completed;
-        });
-
-        var todoPromise = $q.defer(),
-            inProgressPromise = $q.defer();
-
-        Card.query({id: localStorage.getItem('todo')}, function(items){
-            todoPromise.resolve(items);
-        });
-        Card.query({id: localStorage.getItem('inprogress')}, function(current){
-            inProgressPromise.resolve(current);
-        });
-
-        $q.all([todoPromise.promise, inProgressPromise.promise]).then(function(lists){
-            $scope.inProgressTasks = lists[1];
-            getTotalTime($scope.inProgressTasks[0]);
-
-            var allItemsArray = Array.prototype.concat.apply([], lists),
-                newList = [];
-            $scope.currentTasks.forEach(function(item){
-                var result = extract(item, allItemsArray)
-                if (result) newList.push(result);
-            });
-            Array.prototype.push.apply(newList, allItemsArray);
-
-            $scope.currentTasks = newList;
+        return $q.all([
+            trello.getCardsInList(localStorage.getItem('todo')),
+            trello.getCardsInList(localStorage.getItem('inprogress')),
+            trello.getCardsInList(localStorage.getItem('completed'))
+        ]).then(function(array) {
+            $scope.currentTasks = synchronizeList($scope.currentTasks, array[1].concat(array[0]));
+            $scope.inProgressTasks = array[1];
+            $scope.doneTasks = array[2];
+            return getTotalTime(array[1][0]);
         });
     }
 
@@ -119,9 +108,6 @@ angular.module('trelloApp')
         todoIndex: 0,
         activeIndex: 0
     }
-
-    $scope.activities = {};
-    $scope.cards = [];
 
     $scope.empty = function(item) {
         return Object.keys(item).length === 0;
@@ -143,43 +129,52 @@ angular.module('trelloApp')
         };
     }
 
-    $scope.relax = function() {
-        $scope.location.rowNum = 2;
-        Card.query({id: localStorage.getItem('inprogress')}, function(result){
-            $q.all(result.map(function(item) {
-                return move(item, 'todo');
-            })).then(refresh);
-        });
-
-        var today = new Date(),
-            tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
-
-        AllActions.query({since: dateString(today), before: dateString(tomorrow), limit: 200}, function(result){
+    function createSummaryTable() {
+        return trello.getAllActions().then(function(allActions){
             var last = null;
 
             $scope.cards.length = 0;
-            $scope.activities = result.sort(function(a, b){
-                return new Date(a.date).getTime() - new Date(b.date).getTime();
-            }).reduce(function(hash, action) {
+            $scope.activities = {};
 
+            allActions.sort(function(a, b){
+                return timeDiff(a.date, b.date);
+            }).forEach(function(action) {
                 if (last) {
-                    var total = new Date(action.date).getTime() - new Date(last.date).getTime();
-                    if (hash.hasOwnProperty(action.data.card.id)) {
-                        hash[action.data.card.id] += total;
+                    var total = timeDiff(action.date, last.date);
+                    if ($scope.activities.hasOwnProperty(action.data.card.id)) {
+                        $scope.activities[action.data.card.id] += total;
                     } else {
-                        hash[action.data.card.id] = total;
+                        $scope.activities[action.data.card.id] = total;
                         $scope.cards.push(action.data.card);
                     }
                     last = null;
                 } else if (action.data.listAfter.id === localStorage.getItem('inprogress')) {
                     last = action;
                 }
-                return hash;
-            }, {});
+            });
 
             if (last && actionInProgress(last)) {
                 $scope.activities[last.data.card.id] += (new Date().getTime() - new Date(last.date).getTime());
             }
+        });
+    }
+
+    function stopAllCurrentTasks () {
+        return trello.getCardsInList(localStorage.getItem('inprogress')).then(function(result){
+            return $q.all(result.map(function(item) {
+                return move(item, 'todo');
+            })).then(refresh);
+        });
+    }
+
+    $scope.relax = function() {
+        $scope.location.rowNum = 2;
+
+        enqueue(function() {
+            return $q.all([
+                createSummaryTable(),
+                stopAllCurrentTasks()
+            ]);
         });
     };
 
@@ -216,16 +211,16 @@ angular.module('trelloApp')
         $scope.location.activeIndex = index;
         $scope.location.rowNum = 1;
 
-        Card.query({id: localStorage.getItem('inprogress')}, function(result){
-
-            if (result.every(function(item) { return item.id !== startWorkingOn.id; })) {
-
-                $q.all(result.map(function(item) {
-                    return move(item, 'todo');
-                })).then(function() {
-                    return move(startWorkingOn, 'inprogress').then(refresh);
-                });
-            }
+        enqueue(function() {
+            return trello.getCardsInList(localStorage.getItem('inprogress')).then(function(result){
+                if (!result[0] || result.length > 1 || result[0].id !== startWorkingOn.id) {
+                    return $q.all(
+                        result.map(function(item) {
+                            return move(item, 'todo');
+                        }).concat(move(startWorkingOn, 'inprogress'))
+                    ).then(refresh);
+                }
+            });
         });
    };
 
@@ -233,18 +228,22 @@ angular.module('trelloApp')
         $scope.location.rowNum = $scope.inProgressTasks.some(function(x){return item.id === x.id;}) ? 2 : 1;
         $scope.location.activeIndex--;
 
-    	move(item, 'completed').then(refresh);
+    	enqueue(function() {
+            return move(item, 'completed').then(refresh);
+        });
     };
 
     $scope.restart = function(item) {
         $scope.location.activeIndex = $scope.currentTasks.length;
         $scope.location.rowNum = 1;
 
-        Card.query({id: localStorage.getItem('inprogress')}, function(result){
-            $q.all(result.map(function(item) {
-                return move(item, 'todo');
-            })).then(function(){
-                move(item, 'inprogress').then(refresh);
+        enqueue(function() {
+            trello.getCardsInList(localStorage.getItem('inprogress')).then(function(result){
+                return $q.all(
+                    result.map(function(item) {
+                        return move(item, 'todo');
+                    }).concat(move(item, 'inprogress'))
+                ).then(refresh);
             });
         });
     };
